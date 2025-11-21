@@ -127,6 +127,15 @@ export default class  extends AdminForthPlugin {
       }
       return { ok: true };
     });
+    const linkedResource = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
+    linkedResource.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
+      console.log('Linked resource delete hook triggered');
+      const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(linkedColumnNameInJunctionResource, recordId)]);
+      for(const jr of existingJunctionRecords) {
+        await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
+      }
+      return { ok: true };
+    });
   }
   
   validateConfigAfterDiscover(adminforth: IAdminForth, resourceConfig: AdminForthResource) {

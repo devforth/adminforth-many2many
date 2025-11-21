@@ -93,9 +93,22 @@ export default class  extends AdminForthPlugin {
 
     resourceConfig.hooks.edit.beforeSave.push(async ({recordId, updates }: { recordId: any, updates: any }) => {
       if ( updates[`many2many_${this.pluginInstanceId}`] ) {
-        for(const linkedId of updates[`many2many_${this.pluginInstanceId}`]) {
-          //console.log(`Would create junction record for ${recordId} <-> ${linkedId}`);
-
+        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
+        const updatedLinkedIds = updates[`many2many_${this.pluginInstanceId}`];
+        for(const jr of existingJunctionRecords) {
+          const linkedId = jr[linkedColumnNameInJunctionResource];
+          if ( !updatedLinkedIds.includes(linkedId) ) {
+            await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
+          }
+        }
+        for(const linkedId of updatedLinkedIds) {
+          const alreadyExists = existingJunctionRecords.find(jr => jr[linkedColumnNameInJunctionResource] === linkedId);
+          if ( !alreadyExists ) {
+            await this.adminforth.resource(junctionResource.resourceId).create({
+              [resourceColumnNameInJunctionResource]: recordId,
+              [linkedColumnNameInJunctionResource]: linkedId,
+            });
+          }
         }
       }
       return { ok: true };
@@ -104,12 +117,9 @@ export default class  extends AdminForthPlugin {
     // ** HOOKS FOR DELETE **//
 
     resourceConfig.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
-      //console.log('DELETE HOOK many2many BEFORE SAVE', recordId, record);
-      if ( record[`many2many_${this.pluginInstanceId}`] ) {
-        for(const linkedId of record[`many2many_${this.pluginInstanceId}`]) {
-          //console.log(`Would delete junction record for ${recordId} <-> ${linkedId}`);
-
-        }
+      const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
+      for(const jr of existingJunctionRecords) {
+        await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
       }
       return { ok: true };
     });

@@ -29,7 +29,6 @@ const selectOptions = ref([])
 
 onMounted(async() => {
   loadForeignOptions();
-  console.log('Props record in ManyToManyInput:', props);
   if ( !props.record || Object.keys(props.record).length === 0 ) return;
   try {
     const resp = await callAdminForthApi({

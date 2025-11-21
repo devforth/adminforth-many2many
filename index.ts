@@ -59,12 +59,16 @@ export default class  extends AdminForthPlugin {
           file: this.componentPath('ManyToManyInput.vue'),
           meta: pluginFrontendOptions,
         },
+        show: {
+          file: this.componentPath('ManyToManyShow.vue'),
+          meta: pluginFrontendOptions,
+        },
       },
       showIn: {
         create: true,
         edit: true,
         list: false,
-        show: false,
+        show: true,
         filter: false,
       },
       required: {
@@ -140,14 +144,26 @@ export default class  extends AdminForthPlugin {
       method: 'POST',
       path: `/plugin/${this.pluginInstanceId}/get-junctionResource-records`,
       handler: async ({ body }) => {
-        const { recordId } = body;
+        const { recordId, returnLabels } = body;
         const junctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
         let dataToReturn = [];
         const junctionResourcePkColumn = junctionResource.columns.find(c => c.primaryKey);
+        const linkedResource = this.adminforth.resource(this.options.linkedResourceId);
         for(const jr of junctionRecords) {
           const record = await this.adminforth.resource(this.options.linkedResourceId).get([Filters.EQ(junctionResourcePkColumn.name, jr[linkedColumnNameInJunctionResource])]);
-          dataToReturn.push(record[junctionResourcePkColumn.name],
-          );
+          if ( !returnLabels ) {
+            dataToReturn.push (record[junctionResourcePkColumn.name]);
+          } else {
+            dataToReturn.push (
+              linkedResource.resourceConfig.recordLabel ? { 
+                label: linkedResource.resourceConfig.recordLabel(record), 
+                value: record[junctionResourcePkColumn.name]
+              } : {
+                label: record[junctionResourcePkColumn.name],
+                value: record[junctionResourcePkColumn.name]
+              }
+            );
+          }
         }
         return { ok: true, data: dataToReturn };
       }

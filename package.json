@@ -1,5 +1,5 @@
 {
-  "name": "Many2Many",
+  "name": "@adminforth/many2many",
   "version": "1.0.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,6 +11,30 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "release": {
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/npm",
+      "@semantic-release/github",
+      [
+        "semantic-release-slack-bot",
+        {
+          "notifyOnSuccess": true,
+          "notifyOnFail": true,
+          "slackIcon": ":package:",
+          "markdownReleaseNotes": true
+        }
+      ]
+    ],
+    "branches": [
+      "main",
+      {
+        "name": "next",
+        "prerelease": true
+      }
+    ]
+  },
   "devDependencies": {
     "@types/node": "latest",
     "typescript": "^5.7.3"

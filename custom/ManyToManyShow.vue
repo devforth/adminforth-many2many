@@ -1,6 +1,6 @@
 <template>
  <template v-for="value in values" :key="value.value">
-    <Link :to="`/resource/${props.meta.linkedResourceId}/show/${value.value}`" class="badge bg-primary me-1">{{ value.label }}</Link>
+    <Link :to="`/resource/${props.meta.linkedResourceId}/show/${value.value}`" class="badge bg-primary me-1 mr-3">{{ value.label }}</Link>
  </template>
 </template>
 
@@ -34,7 +34,6 @@ onMounted(async() => {
         returnLabels: true,
       },
     });
-    console.log('SHOW resp', resp);
     values.value = resp.data;
   } catch (error) {
     console.error('Error loading foreign options:', error);

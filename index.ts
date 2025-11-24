@@ -119,22 +119,23 @@ export default class  extends AdminForthPlugin {
     });
 
     // ** HOOKS FOR DELETE **//
-
-    resourceConfig.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
-      const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
-      for(const jr of existingJunctionRecords) {
-        await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
-      }
-      return { ok: true };
-    });
-    const linkedResource = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
-    linkedResource.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
-      const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(linkedColumnNameInJunctionResource, recordId)]);
-      for(const jr of existingJunctionRecords) {
-        await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
-      }
-      return { ok: true };
-    });
+    if (!this.options.dontDeleteJunctionRecords) {
+      resourceConfig.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
+        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
+        for(const jr of existingJunctionRecords) {
+          await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
+        }
+        return { ok: true };
+      });
+      const linkedResource = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
+      linkedResource.hooks.delete.beforeSave.push(async ({ recordId, record }: { recordId: any, record: any }) => {
+        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(linkedColumnNameInJunctionResource, recordId)]);
+        for(const jr of existingJunctionRecords) {
+          await this.adminforth.resource(junctionResource.resourceId).delete(jr[junctionResource.columns.find(c => c.primaryKey).name]);
+        }
+        return { ok: true };
+      });
+    }
   }
   
   validateConfigAfterDiscover(adminforth: IAdminForth, resourceConfig: AdminForthResource) {

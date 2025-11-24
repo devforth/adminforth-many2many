@@ -164,8 +164,8 @@ export default class  extends AdminForthPlugin {
             dataToReturn.push (record[junctionResourcePkColumn.name]);
           } else {
             dataToReturn.push (
-              linkedResource.resourceConfig.recordLabel ? { 
-                label: linkedResource.resourceConfig.recordLabel(record), 
+              (linkedResource as any).resourceConfig.recordLabel ? { 
+                label: (linkedResource as any).resourceConfig.recordLabel(record), 
                 value: record[junctionResourcePkColumn.name]
               } : {
                 label: record[junctionResourcePkColumn.name],

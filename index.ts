@@ -81,7 +81,7 @@ export default class  extends AdminForthPlugin {
 
     // ** HOOKS FOR CREATE **//
 
-    resourceConfig.hooks.create.afterSave.push(async ({ recordId, recordWithVirtualColumns }: { recordId: any, recordWithVirtualColumns: any }) => {
+    resourceConfig.hooks.create.afterSave.push(async ({ recordId, recordWithVirtualColumns }) => {
       if ( recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`] ) {
         for(const linkedId of recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`]) {
           await this.adminforth.resource(junctionResource.resourceId).create({

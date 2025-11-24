@@ -4,6 +4,7 @@
     :options="selectOptions"
     v-model="selected"
     multiple
+    @search="loadForeignOptions"
   ></Select>
 </template>
 
@@ -44,7 +45,7 @@ onMounted(async() => {
   }
 });
 
-async function loadForeignOptions(){
+async function loadForeignOptions(search = '') {
   try {
     const resp = await callAdminForthApi({
       method: 'POST',
@@ -54,7 +55,7 @@ async function loadForeignOptions(){
         column: props.meta.linkedColumnName,
         limit: 100,
         offset: 0,
-        search: '',
+        search: search,
       },
     });
     selectOptions.value = resp.items

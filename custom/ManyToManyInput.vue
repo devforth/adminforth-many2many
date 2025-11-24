@@ -10,7 +10,7 @@
 
 
 <script lang="ts" setup>
-import { Select, Button } from '@/afcl'
+import { Select } from '@/afcl'
 import { ref, onMounted, watch } from 'vue';
 import { callAdminForthApi } from '@/utils';
 
@@ -27,9 +27,9 @@ const emit = defineEmits([
 
 const selected = ref([])
 const selectOptions = ref([])
+const pickedValues = ref([])
 
 onMounted(async() => {
-  loadForeignOptions();
   if ( !props.record || Object.keys(props.record).length === 0 ) return;
   try {
     const resp = await callAdminForthApi({
@@ -43,6 +43,20 @@ onMounted(async() => {
   } catch (error) {
     console.error('Error loading foreign options:', error);
   }
+  try {
+    const resp = await callAdminForthApi({
+      method: 'POST',
+      path: `/plugin/${props.meta.pluginInstanceId}/get-junctionResource-records`,
+      body: {
+        recordId: props.record[props.meta.resourcePrimaryKeyColumnName],
+        returnLabels: true,
+      },
+    });
+   pickedValues.value = resp.data
+  } catch (error) {
+    console.error('Error loading foreign options:', error);
+  }
+  loadForeignOptions();
 });
 
 async function loadForeignOptions(search = '') {
@@ -58,7 +72,12 @@ async function loadForeignOptions(search = '') {
         search: search,
       },
     });
-    selectOptions.value = resp.items
+    
+    const removeValues = pickedValues.value.map(i => i.value);
+
+    const result = resp.items.filter(item => !removeValues.includes(item.value));
+    
+    selectOptions.value = [...result, ...pickedValues.value];
   } catch (error) {
     console.error('Error loading foreign options:', error);
   }

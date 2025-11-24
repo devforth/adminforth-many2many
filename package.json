@@ -1,6 +1,9 @@
 {
   "name": "@adminforth/many2many",
   "version": "1.0.1",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",

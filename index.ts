@@ -75,7 +75,7 @@ export default class  extends AdminForthPlugin {
         create: false,
         edit: false
       },
-      label: this.options.linkedResourceId
+      label: this.options.labelForColumn || this.options.linkedResourceId
     };
     resourceConfig.columns.push(virtualColumn);
 

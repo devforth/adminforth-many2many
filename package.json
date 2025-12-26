@@ -44,6 +44,6 @@
     "semantic-release-slack-bot": "^4.0.2"
   },
   "peerDependencies": {
-    "adminforth": "^2.13.0-next.51"
+    "adminforth": "next"
   }
 }

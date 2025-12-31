@@ -32,7 +32,10 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
       }
     }
     if (!this.junctionResource) {
-      throw new Error(`Junction resource not found for many-to-many relation between ${resourceConfig.resourceId} and ${this.options.linkedResourceId}`);
+      throw new Error(
+        `Junction resource not found for many-to-many relation between ${resourceConfig.resourceId} and ${this.options.linkedResourceId}. ` +
+        `Checked resources: ${this.adminforth.config.resources.map(r => r.resourceId).join(", ")}`
+      );
     }
     this.linkedColumnNameInJunctionResource = this.junctionResource.columns.find(c => c.foreignResource?.resourceId === this.options.linkedResourceId)?.name || null;
     this.resourceColumnNameInJunctionResource = this.junctionResource.columns.find(c => c.foreignResource?.resourceId === resourceConfig.resourceId)?.name || null;
@@ -45,7 +48,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
       pluginInstanceId: this.pluginInstanceId,
       resourceId: resourceConfig.resourceId,
       linkedResourceId: this.options.linkedResourceId,
-      junctionResourceId: this.junctionResource ? this.junctionResource.resourceId : null,
+      junctionResourceId: this.junctionResource.resourceId,
       linkedColumnName: this.linkedColumnNameInJunctionResource,
       resourcePrimaryKeyColumnName: resourceConfig.columns.find(c => c.primaryKey)?.name,
     }
@@ -106,13 +109,14 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     resourceConfig.hooks.edit.beforeSave.push(async ({recordId, updates, adminUser }: { recordId: any, updates: any, adminUser: any }) => {
       if ( updates[`many2many_${this.pluginInstanceId}`] ) {
         const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         const updatedLinkedIds = updates[`many2many_${this.pluginInstanceId}`];
         for(const jr of existingJunctionRecords) {
           const linkedId = jr[this.linkedColumnNameInJunctionResource];
           if ( !updatedLinkedIds.includes(linkedId) ) {
             await this.adminforth.deleteResourceRecord({
               resource: this.junctionResource,
-              recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
+              recordId: jr[junctionPkName],
               record: jr,
               adminUser
             });
@@ -142,10 +146,11 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
           return { ok: true };
         }
         const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         for(const jr of existingJunctionRecords) {
           await this.adminforth.deleteResourceRecord({
             resource: this.junctionResource,
-            recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
+            recordId: jr[junctionPkName],
             record: jr,
             adminUser
           });
@@ -161,10 +166,11 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
           return { ok: true };
         }
         const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.linkedColumnNameInJunctionResource, recordId)]);
+        const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         for(const jr of existingJunctionRecords) {
           await this.adminforth.deleteResourceRecord({
             resource: this.junctionResource,
-            recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
+            recordId: jr[junctionPkName],
             record: jr,
             adminUser
           });

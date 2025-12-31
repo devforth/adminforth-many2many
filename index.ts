@@ -2,11 +2,11 @@ import { AdminForthPlugin, Filters } from "adminforth";
 import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource } from "adminforth";
 import type { PluginOptions } from './types.js';
 
-let junctionResource = null;
-let linkedColumnNameInJunctionResource = null;
-let resourceColumnNameInJunctionResource = null;
-export default class  extends AdminForthPlugin {
+export default class ManyToManyPlugin extends AdminForthPlugin {
   options: PluginOptions;
+  private junctionResource: AdminForthResource | null = null;
+  private linkedColumnNameInJunctionResource: string | null = null;
+  private resourceColumnNameInJunctionResource: string | null = null;
 
   constructor(options: PluginOptions) {
     super(options, import.meta.url);
@@ -27,23 +27,26 @@ export default class  extends AdminForthPlugin {
         } 
       }
       if ( wasLinkedResourceFound && wasCurrentResourceFound ) {
-        junctionResource = resource;
+        this.junctionResource = resource;
         break;
       }
     }
-    if (!junctionResource) {
+    if (!this.junctionResource) {
       throw new Error(`Junction resource not found for many-to-many relation between ${resourceConfig.resourceId} and ${this.options.linkedResourceId}`);
     }
+    this.linkedColumnNameInJunctionResource = this.junctionResource.columns.find(c => c.foreignResource?.resourceId === this.options.linkedResourceId)?.name || null;
+    this.resourceColumnNameInJunctionResource = this.junctionResource.columns.find(c => c.foreignResource?.resourceId === resourceConfig.resourceId)?.name || null;
 
-    linkedColumnNameInJunctionResource = junctionResource.columns.find(c => c.foreignResource?.resourceId === this.options.linkedResourceId)?.name;
-    resourceColumnNameInJunctionResource = junctionResource.columns.find(c => c.foreignResource?.resourceId === resourceConfig.resourceId)?.name;
+    if (!this.linkedColumnNameInJunctionResource || !this.resourceColumnNameInJunctionResource) {
+      throw new Error(`Junction resource is missing foreign key columns for relation ${resourceConfig.resourceId} <-> ${this.options.linkedResourceId}`);
+    }
 
     const pluginFrontendOptions = {
       pluginInstanceId: this.pluginInstanceId,
       resourceId: resourceConfig.resourceId,
       linkedResourceId: this.options.linkedResourceId,
-      junctionResourceId: junctionResource ? junctionResource.resourceId : null,
-      linkedColumnName: linkedColumnNameInJunctionResource,
+      junctionResourceId: this.junctionResource ? this.junctionResource.resourceId : null,
+      linkedColumnName: this.linkedColumnNameInJunctionResource,
       resourcePrimaryKeyColumnName: resourceConfig.columns.find(c => c.primaryKey)?.name,
     }
 
@@ -86,10 +89,10 @@ export default class  extends AdminForthPlugin {
       if ( recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`] ) {
         for(const linkedId of recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`]) {
           await this.adminforth.createResourceRecord({
-            resource: junctionResource,
+            resource: this.junctionResource,
             record: {
-              [resourceColumnNameInJunctionResource]: recordId,
-              [linkedColumnNameInJunctionResource]: linkedId,
+              [this.resourceColumnNameInJunctionResource]: recordId,
+              [this.linkedColumnNameInJunctionResource]: linkedId,
             },
             adminUser
           });
@@ -102,27 +105,27 @@ export default class  extends AdminForthPlugin {
 
     resourceConfig.hooks.edit.beforeSave.push(async ({recordId, updates, adminUser }: { recordId: any, updates: any, adminUser: any }) => {
       if ( updates[`many2many_${this.pluginInstanceId}`] ) {
-        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
+        const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
         const updatedLinkedIds = updates[`many2many_${this.pluginInstanceId}`];
         for(const jr of existingJunctionRecords) {
-          const linkedId = jr[linkedColumnNameInJunctionResource];
+          const linkedId = jr[this.linkedColumnNameInJunctionResource];
           if ( !updatedLinkedIds.includes(linkedId) ) {
             await this.adminforth.deleteResourceRecord({
-              resource: junctionResource,
-              recordId: jr[junctionResource.columns.find(c => c.primaryKey).name],
+              resource: this.junctionResource,
+              recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
               record: jr,
               adminUser
             });
           }
         }
         for(const linkedId of updatedLinkedIds) {
-          const alreadyExists = existingJunctionRecords.find(jr => jr[linkedColumnNameInJunctionResource] === linkedId);
+          const alreadyExists = existingJunctionRecords.find(jr => jr[this.linkedColumnNameInJunctionResource] === linkedId);
           if ( !alreadyExists ) {
             await this.adminforth.createResourceRecord({
-              resource: junctionResource,
+              resource: this.junctionResource,
               record: {
-                [resourceColumnNameInJunctionResource]: recordId,
-                [linkedColumnNameInJunctionResource]: linkedId,
+                [this.resourceColumnNameInJunctionResource]: recordId,
+                [this.linkedColumnNameInJunctionResource]: linkedId,
               },
               adminUser
             });
@@ -135,11 +138,14 @@ export default class  extends AdminForthPlugin {
     // ** HOOKS FOR DELETE **//
     if (!this.options.dontDeleteJunctionRecords) {
       resourceConfig.hooks.delete.beforeSave.push(async ({ recordId, record, adminUser }: { recordId: any, record: any, adminUser: any }) => {
-        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
+        if (recordId === undefined || recordId === null || recordId === '') {
+          return { ok: true };
+        }
+        const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
         for(const jr of existingJunctionRecords) {
           await this.adminforth.deleteResourceRecord({
-            resource: junctionResource,
-            recordId: jr[junctionResource.columns.find(c => c.primaryKey).name],
+            resource: this.junctionResource,
+            recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
             record: jr,
             adminUser
           });
@@ -147,12 +153,18 @@ export default class  extends AdminForthPlugin {
         return { ok: true };
       });
       const linkedResource = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
+      if (!linkedResource) {
+        throw new Error(`Linked resource not found: ${this.options.linkedResourceId}`);
+      }
       linkedResource.hooks.delete.beforeSave.push(async ({ recordId, record, adminUser }: { recordId: any, record: any, adminUser: any }) => {
-        const existingJunctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(linkedColumnNameInJunctionResource, recordId)]);
+        if (recordId === undefined || recordId === null || recordId === '') {
+          return { ok: true };
+        }
+        const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.linkedColumnNameInJunctionResource, recordId)]);
         for(const jr of existingJunctionRecords) {
           await this.adminforth.deleteResourceRecord({
-            resource: junctionResource,
-            recordId: jr[junctionResource.columns.find(c => c.primaryKey).name],
+            resource: this.junctionResource,
+            recordId: jr[this.junctionResource.columns.find(c => c.primaryKey).name],
             record: jr,
             adminUser
           });
@@ -181,22 +193,30 @@ export default class  extends AdminForthPlugin {
         if (recordId === undefined || recordId === null || recordId === '') {
           return { ok: true, data: [] };
         }
-        const junctionRecords = await this.adminforth.resource(junctionResource.resourceId).list([Filters.EQ(resourceColumnNameInJunctionResource, recordId)]);
-        let dataToReturn = [];
-        const junctionResourcePkColumn = junctionResource.columns.find(c => c.primaryKey);
-        const linkedResource = this.adminforth.resource(this.options.linkedResourceId);
+        const junctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const dataToReturn = [];
+        const linkedResourceConfig = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
+        if (!linkedResourceConfig) {
+          throw new Error(`Linked resource not found: ${this.options.linkedResourceId}`);
+        }
+        const linkedPkColumn = linkedResourceConfig.columns.find(c => c.primaryKey);
+        if (!linkedPkColumn) {
+          throw new Error(`Linked resource ${this.options.linkedResourceId} has no primary key`);
+        }
+        const linkedOperationalResource = this.adminforth.resource(this.options.linkedResourceId);
         for(const jr of junctionRecords) {
-          const record = await this.adminforth.resource(this.options.linkedResourceId).get([Filters.EQ(junctionResourcePkColumn.name, jr[linkedColumnNameInJunctionResource])]);
-          if ( !returnLabels ) {
-            dataToReturn.push (record[junctionResourcePkColumn.name]);
+          const linkedId = jr[this.linkedColumnNameInJunctionResource];
+          if (!returnLabels) {
+            dataToReturn.push(linkedId);
           } else {
-            dataToReturn.push (
-              (linkedResource as any).resourceConfig.recordLabel ? { 
-                label: (linkedResource as any).resourceConfig.recordLabel(record), 
-                value: record[junctionResourcePkColumn.name]
+            const linkedRecord = await linkedOperationalResource.get([Filters.EQ(linkedPkColumn.name, linkedId)]);
+            dataToReturn.push(
+              (linkedOperationalResource as any).resourceConfig.recordLabel ? {
+                label: (linkedOperationalResource as any).resourceConfig.recordLabel(linkedRecord),
+                value: linkedRecord[linkedPkColumn.name]
               } : {
-                label: record[junctionResourcePkColumn.name],
-                value: record[junctionResourcePkColumn.name]
+                label: linkedRecord[linkedPkColumn.name],
+                value: linkedRecord[linkedPkColumn.name]
               }
             );
           }

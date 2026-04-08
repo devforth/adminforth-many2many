@@ -1,5 +1,7 @@
 import { Predicate } from "adminforth"
-export interface PluginOptions {
+import  {type PluginsCommonOptions } from "adminforth";
+
+export interface PluginOptions extends PluginsCommonOptions {
   linkedResourceId: string
   dontDeleteJunctionRecords?: boolean 
   labelForColumn?: string

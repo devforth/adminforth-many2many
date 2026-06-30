@@ -1,4 +1,4 @@
-import { AdminForthPlugin, Filters } from "adminforth";
+import { AdminForthPlugin, parseBody, Filters } from "adminforth";
 import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource } from "adminforth";
 import type { PluginOptions } from './types.js';
 import { z } from "zod";
@@ -17,22 +17,6 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
   constructor(options: PluginOptions) {
     super(options, import.meta.url);
     this.options = options;
-  }
-
-  private parseBody<T>(
-    schema: z.ZodType<T>,
-    body: unknown,
-    response: { setStatus: (code: number, message: string) => void },
-  ): { ok: true; data: T } | { ok: false; error: { error: string; details: unknown } } {
-    const parsed = schema.safeParse(body ?? {});
-    if (!parsed.success) {
-      response.setStatus(400, '');
-      return {
-        ok: false,
-        error: { error: 'Request body validation failed', details: parsed.error.issues },
-      };
-    }
-    return { ok: true, data: parsed.data };
   }
 
   async modifyResourceConfig(adminforth: IAdminForth, resourceConfig: AdminForthResource) {
@@ -217,7 +201,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
       method: 'POST',
       path: `/plugin/${this.pluginInstanceId}/get-junctionResource-records`,
       handler: async ({ body, response }) => {
-        const parsed = this.parseBody(getJunctionRecordsBodySchema, body, response);
+        const parsed = parseBody(getJunctionRecordsBodySchema, body, response);
         if ('error' in parsed) return parsed.error;
         const data = parsed.data;
         const { recordId, returnLabels } = data;

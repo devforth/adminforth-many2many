@@ -1,6 +1,12 @@
 import { AdminForthPlugin, Filters } from "adminforth";
 import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource } from "adminforth";
 import type { PluginOptions } from './types.js';
+import { z } from "zod";
+
+const getJunctionRecordsBodySchema = z.object({
+  recordId: z.union([z.string(), z.number()]).nullish(),
+  returnLabels: z.boolean().nullish(),
+}).strict();
 
 export default class ManyToManyPlugin extends AdminForthPlugin {
   options: PluginOptions;
@@ -11,6 +17,19 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
   constructor(options: PluginOptions) {
     super(options, import.meta.url);
     this.options = options;
+  }
+
+  private parseBody<T>(
+    schema: z.ZodType<T>,
+    body: unknown,
+    response: { setStatus: (code: number, message: string) => void },
+  ): T | null {
+    const parsed = schema.safeParse(body ?? {});
+    if (!parsed.success) {
+      response.setStatus(422, parsed.error.message);
+      return null;
+    }
+    return parsed.data;
   }
 
   async modifyResourceConfig(adminforth: IAdminForth, resourceConfig: AdminForthResource) {
@@ -194,8 +213,10 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     server.endpoint({
       method: 'POST',
       path: `/plugin/${this.pluginInstanceId}/get-junctionResource-records`,
-      handler: async ({ body }) => {
-        const { recordId, returnLabels } = body;
+      handler: async ({ body, response }) => {
+        const data = this.parseBody(getJunctionRecordsBodySchema, body, response);
+        if (!data) return;
+        const { recordId, returnLabels } = data;
         if (recordId === undefined || recordId === null || recordId === '') {
           return { ok: true, data: [] };
         }

@@ -1,4 +1,4 @@
-import { AdminForthPlugin, parseBody, Filters } from "adminforth";
+import { AdminForthPlugin, Filters } from "adminforth";
 import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource } from "adminforth";
 import type { PluginOptions } from './types.js';
 import { z } from "zod";
@@ -200,10 +200,9 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     server.endpoint({
       method: 'POST',
       path: `/plugin/${this.pluginInstanceId}/get-junctionResource-records`,
+      request_schema: getJunctionRecordsBodySchema,
       handler: async ({ body, response }) => {
-        const parsed = parseBody(getJunctionRecordsBodySchema, body, response);
-        if ('error' in parsed) return parsed.error;
-        const data = parsed.data;
+        const data = body as z.infer<typeof getJunctionRecordsBodySchema>;
         const { recordId, returnLabels } = data;
         if (recordId === undefined || recordId === null || recordId === '') {
           return { ok: true, data: [] };

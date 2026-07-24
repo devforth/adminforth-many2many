@@ -16,9 +16,9 @@
     "build": "tsc && rsync -av --exclude 'node_modules' custom dist/"
   },
   "keywords": [],
-  "author": "",
+  "author": "DevForth (https://devforth.io)",
   "license": "MIT",
-  "description": "",
+  "description": "AdminForth plugin for managing many-to-many relations between resources.",
   "release": {
     "plugins": [
       "@semantic-release/commit-analyzer",

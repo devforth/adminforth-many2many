@@ -99,7 +99,6 @@ async function loadForeignOptions(search = '', offset = 0) {
 }
 
 function scrollNearEnd() {
-  console.log('scrollNearEnd');
   if ( lastSearch.value !== currentSearch.value ) {
     loadOffset.value = 0;
   } else {

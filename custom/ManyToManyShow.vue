@@ -1,13 +1,25 @@
 <template>
- <template v-for="value in values" :key="value.value">
-    <Link :to="`/resource/${props.meta.linkedResourceId}/show/${value.value}`" class="badge bg-primary me-1 mr-3">{{ value.label }}</Link>
- </template>
+  <!-- linked records are chips, like the foreign key arrays of core -->
+  <span class="af-many2many-show flex flex-wrap">
+    <span
+      v-for="value in values"
+      :key="value.value"
+      class="inline-flex items-center rounded-full m-0.5 h-5 px-2 text-xs font-medium bg-lightButtonGroupActiveBackground text-lightButtonGroupActiveText dark:bg-darkButtonGroupActiveBackground dark:text-darkButtonGroupActiveText"
+    >
+      <RouterLink
+        :to="`/resource/${props.meta.linkedResourceId}/show/${value.value}`"
+        class="font-medium whitespace-nowrap hover:underline"
+      >
+        {{ value.label }}
+      </RouterLink>
+    </span>
+  </span>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, ref } from 'vue';
 import { callAdminForthApi } from '@/utils';
-import { Link } from '@/afcl'
+import { RouterLink } from 'vue-router';
 
 
 const props = defineProps<{

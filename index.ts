@@ -200,6 +200,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     server.endpoint({
       method: 'POST',
       path: `/plugin/${this.pluginInstanceId}/get-junctionResource-records`,
+      agent: { hiddenFromAgents: true },
       request_schema: getJunctionRecordsBodySchema,
       handler: async ({ body, response }) => {
         const data = body as z.infer<typeof getJunctionRecordsBodySchema>;

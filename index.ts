@@ -5,7 +5,6 @@ import { z } from "zod";
 
 const getJunctionRecordsBodySchema = z.object({
   recordId: z.union([z.string(), z.number()]).nullish(),
-  returnLabels: z.boolean().nullish(),
 }).strict();
 
 export default class ManyToManyPlugin extends AdminForthPlugin {
@@ -17,6 +16,10 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
   constructor(options: PluginOptions) {
     super(options, import.meta.url);
     this.options = options;
+  }
+
+  private getJunctionRecords(recordId: any) {
+    return this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
   }
 
   async modifyResourceConfig(adminforth: IAdminForth, resourceConfig: AdminForthResource) {
@@ -50,13 +53,15 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
       throw new Error(`Junction resource is missing foreign key columns for relation ${resourceConfig.resourceId} <-> ${this.options.linkedResourceId}`);
     }
 
+    const resourcePrimaryKeyColumnName = resourceConfig.columns.find(c => c.primaryKey).name;
+
     const pluginFrontendOptions = {
       pluginInstanceId: this.pluginInstanceId,
       resourceId: resourceConfig.resourceId,
       linkedResourceId: this.options.linkedResourceId,
       junctionResourceId: this.junctionResource.resourceId,
       linkedColumnName: this.linkedColumnNameInJunctionResource,
-      resourcePrimaryKeyColumnName: resourceConfig.columns.find(c => c.primaryKey)?.name,
+      resourcePrimaryKeyColumnName,
     }
 
     const virtualColumn: AdminForthResourceColumn = {
@@ -92,6 +97,16 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     };
     resourceConfig.columns.push(virtualColumn);
 
+    // ** HOOKS FOR SHOW AND EDIT **//
+
+    resourceConfig.hooks.show.afterDatasourceResponse.push(async ({ response }: { response: any[] }) => {
+      for (const record of response) {
+        const junctionRecords = await this.getJunctionRecords(record[resourcePrimaryKeyColumnName]);
+        record[virtualColumn.name] = junctionRecords.map(jr => jr[this.linkedColumnNameInJunctionResource]);
+      }
+      return { ok: true };
+    });
+
     // ** HOOKS FOR CREATE **//
 
     resourceConfig.hooks.create.afterSave.push(async ({ recordId, recordWithVirtualColumns, adminUser }) => {
@@ -114,7 +129,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
 
     resourceConfig.hooks.edit.beforeSave.push(async ({recordId, updates, adminUser }: { recordId: any, updates: any, adminUser: any }) => {
       if ( updates[`many2many_${this.pluginInstanceId}`] ) {
-        const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const existingJunctionRecords = await this.getJunctionRecords(recordId);
         const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         const updatedLinkedIds = updates[`many2many_${this.pluginInstanceId}`];
         for(const jr of existingJunctionRecords) {
@@ -151,7 +166,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
         if (recordId === undefined || recordId === null || recordId === '') {
           return { ok: true };
         }
-        const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const existingJunctionRecords = await this.getJunctionRecords(recordId);
         const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         for(const jr of existingJunctionRecords) {
           await this.adminforth.deleteResourceRecord({
@@ -204,11 +219,11 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
       request_schema: getJunctionRecordsBodySchema,
       handler: async ({ body, response }) => {
         const data = body as z.infer<typeof getJunctionRecordsBodySchema>;
-        const { recordId, returnLabels } = data;
+        const { recordId } = data;
         if (recordId === undefined || recordId === null || recordId === '') {
           return { ok: true, data: [] };
         }
-        const junctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+        const junctionRecords = await this.getJunctionRecords(recordId);
         const dataToReturn = [];
         const linkedResourceConfig = this.adminforth.config.resources.find(r => r.resourceId === this.options.linkedResourceId);
         if (!linkedResourceConfig) {
@@ -221,20 +236,16 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
         const linkedOperationalResource = this.adminforth.resource(this.options.linkedResourceId);
         for(const jr of junctionRecords) {
           const linkedId = jr[this.linkedColumnNameInJunctionResource];
-          if (!returnLabels) {
-            dataToReturn.push(linkedId);
-          } else {
-            const linkedRecord = await linkedOperationalResource.get([Filters.EQ(linkedPkColumn.name, linkedId)]);
-            dataToReturn.push(
-              (linkedOperationalResource as any).resourceConfig.recordLabel ? {
-                label: (linkedOperationalResource as any).resourceConfig.recordLabel(linkedRecord),
-                value: linkedRecord[linkedPkColumn.name]
-              } : {
-                label: linkedRecord[linkedPkColumn.name],
-                value: linkedRecord[linkedPkColumn.name]
-              }
-            );
-          }
+          const linkedRecord = await linkedOperationalResource.get([Filters.EQ(linkedPkColumn.name, linkedId)]);
+          dataToReturn.push(
+            (linkedOperationalResource as any).resourceConfig.recordLabel ? {
+              label: (linkedOperationalResource as any).resourceConfig.recordLabel(linkedRecord),
+              value: linkedRecord[linkedPkColumn.name]
+            } : {
+              label: linkedRecord[linkedPkColumn.name],
+              value: linkedRecord[linkedPkColumn.name]
+            }
+          );
         }
         return { ok: true, data: dataToReturn };
       }

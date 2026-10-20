@@ -43,7 +43,6 @@ onMounted(async() => {
       path: `/plugin/${props.meta.pluginInstanceId}/get-junctionResource-records`,
       body: {
         recordId: props.record[props.meta.resourcePrimaryKeyColumnName],
-        returnLabels: true,
       },
     });
     values.value = resp.data;

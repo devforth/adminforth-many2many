@@ -17,6 +17,7 @@ import { callAdminForthApi } from '@/utils';
 
 const props = defineProps<{
   column: any,
+  value: any,
   record: any,
   meta: any,
   resource: any
@@ -26,7 +27,7 @@ const emit = defineEmits([
   'update:value',
 ]);
 
-const selected = ref([])
+const selected = ref(props.value ?? [])
 const selectOptions = ref([])
 const pickedValues = ref([])
 const currentSearch = ref('')
@@ -35,38 +36,21 @@ const loadOffset = ref(0);
 const wasLimitReached = ref(false);
 
 onMounted(async() => {
-  if ( !props.record || Object.keys(props.record).length === 0 ) {
-    loadForeignOptions();
-  } else {
-    try {
-      const resp = await callAdminForthApi({
-        method: 'POST',
-        path: `/plugin/${props.meta.pluginInstanceId}/get-junctionResource-records`,
-        body: {
-          recordId: props.record[props.meta.resourcePrimaryKeyColumnName]
-        },
-      });
-      selected.value = resp.data
-    } catch (error) {
-      console.error('Error loading foreign options:', error);
-    }
-
+  if ( selected.value.length ) {
     try {
       const resp = await callAdminForthApi({
         method: 'POST',
         path: `/plugin/${props.meta.pluginInstanceId}/get-junctionResource-records`,
         body: {
           recordId: props.record[props.meta.resourcePrimaryKeyColumnName],
-          returnLabels: true,
         },
       });
       pickedValues.value = resp.data
     } catch (error) {
       console.error('Error loading foreign options:', error);
     }
-
-    loadForeignOptions();
   }
+  loadForeignOptions();
 });
 
 async function loadForeignOptions(search = '', offset = 0) {

@@ -208,7 +208,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
   instanceUniqueRepresentation(pluginOptions: any) : string {
     // optional method to return unique string representation of plugin instance. 
     // Needed if plugin can have multiple instances on one resource 
-    return `many2many-${this.resourceConfig.resourceId}-${this.options.linkedResourceId}`;
+    return pluginOptions.linkedResourceId;
   }
 
   setupEndpoints(server: IHttpServer) {

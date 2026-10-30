@@ -1,5 +1,5 @@
 import { AdminForthPlugin, Filters } from "adminforth";
-import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource } from "adminforth";
+import type { IAdminForth, IHttpServer, AdminForthResourcePages, AdminForthResourceColumn, AdminForthDataTypes, AdminForthResource, AdminUser } from "adminforth";
 import type { PluginOptions } from './types.js';
 import { z } from "zod";
 
@@ -20,6 +20,14 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
 
   private getJunctionRecords(recordId: any) {
     return this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.resourceColumnNameInJunctionResource, recordId)]);
+  }
+
+  /**
+   * Junction rows follow the record the user saves, so they are written as system writes on the
+   * user's behalf: the junction resource hooks run, its permissions are not checked.
+   */
+  private junctionWriter(adminUser: AdminUser, record?: any) {
+    return this.adminforth.resource(this.junctionResource.resourceId).asSystem({ adminUser, record });
   }
 
   async modifyResourceConfig(adminforth: IAdminForth, resourceConfig: AdminForthResource) {
@@ -112,14 +120,13 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
     resourceConfig.hooks.create.afterSave.push(async ({ recordId, recordWithVirtualColumns, adminUser }) => {
       if ( recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`] ) {
         for(const linkedId of recordWithVirtualColumns[`many2many_${this.pluginInstanceId}`]) {
-          await this.adminforth.createResourceRecord({
-            resource: this.junctionResource,
-            record: {
-              [this.resourceColumnNameInJunctionResource]: recordId,
-              [this.linkedColumnNameInJunctionResource]: linkedId,
-            },
-            adminUser
+          const { error } = await this.junctionWriter(adminUser).create({
+            [this.resourceColumnNameInJunctionResource]: recordId,
+            [this.linkedColumnNameInJunctionResource]: linkedId,
           });
+          if (error) {
+            return { ok: false, error };
+          }
         }
       }
       return { ok: true };
@@ -135,25 +142,19 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
         for(const jr of existingJunctionRecords) {
           const linkedId = jr[this.linkedColumnNameInJunctionResource];
           if ( !updatedLinkedIds.includes(linkedId) ) {
-            await this.adminforth.deleteResourceRecord({
-              resource: this.junctionResource,
-              recordId: jr[junctionPkName],
-              record: jr,
-              adminUser
-            });
+            await this.junctionWriter(adminUser, jr).delete(jr[junctionPkName]);
           }
         }
         for(const linkedId of updatedLinkedIds) {
           const alreadyExists = existingJunctionRecords.find(jr => jr[this.linkedColumnNameInJunctionResource] === linkedId);
           if ( !alreadyExists ) {
-            await this.adminforth.createResourceRecord({
-              resource: this.junctionResource,
-              record: {
-                [this.resourceColumnNameInJunctionResource]: recordId,
-                [this.linkedColumnNameInJunctionResource]: linkedId,
-              },
-              adminUser
+            const { error } = await this.junctionWriter(adminUser).create({
+              [this.resourceColumnNameInJunctionResource]: recordId,
+              [this.linkedColumnNameInJunctionResource]: linkedId,
             });
+            if (error) {
+              return { ok: false, error };
+            }
           }
         }
       }
@@ -169,12 +170,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
         const existingJunctionRecords = await this.getJunctionRecords(recordId);
         const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         for(const jr of existingJunctionRecords) {
-          await this.adminforth.deleteResourceRecord({
-            resource: this.junctionResource,
-            recordId: jr[junctionPkName],
-            record: jr,
-            adminUser
-          });
+          await this.junctionWriter(adminUser, jr).delete(jr[junctionPkName]);
         }
         return { ok: true };
       });
@@ -189,12 +185,7 @@ export default class ManyToManyPlugin extends AdminForthPlugin {
         const existingJunctionRecords = await this.adminforth.resource(this.junctionResource.resourceId).list([Filters.EQ(this.linkedColumnNameInJunctionResource, recordId)]);
         const junctionPkName = this.junctionResource.columns.find(c => c.primaryKey)?.name;
         for(const jr of existingJunctionRecords) {
-          await this.adminforth.deleteResourceRecord({
-            resource: this.junctionResource,
-            recordId: jr[junctionPkName],
-            record: jr,
-            adminUser
-          });
+          await this.junctionWriter(adminUser, jr).delete(jr[junctionPkName]);
         }
         return { ok: true };
       });
